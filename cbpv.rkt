@@ -4,10 +4,6 @@
 (define (force- f) (f))
 
 (define-syntax-category kind)
-;(define-syntax-category ctype)
-;(define-syntax-category value)
-;(define-syntax-category computation)
-
 (define-base-kind vty)
 (define-base-kind cty)
 
@@ -118,6 +114,10 @@
   (check-type (force (thunk (return true))) : (F bool))
   (check-type (main (force (thunk (return true)))) : ⊥)
 
+  (check-equal? (main (if true (return false) (return true))) #f)
+  (check-equal? (main (bind (x (return true)) (return x))) #t)
+  (check-equal? (main (return true)) #t)
+
   (check-type (let (x true) (return x)) : (F bool))
   (check-equal? (main (force (thunk (let (x true) (return x))))) #t)
 
@@ -128,14 +128,3 @@
   (check-type (^ (λ (x : bool) (return x)) true) : (F bool))
   (check-equal? (main (^ (λ (x : bool) (return x)) true)) #t)
   (typecheck-fail (^ true true) #:with-msg "Expected ->"))
-
-(if true (return false) (return true))
-#;(if true false true)
-
-(bind (x (return true)) (return x))
-#;(bind (x (return true)) x)
-#;(bind (x true) (return true))
-
-(main (return true))
-(main (bind (x (return true)) (return x)))
-#;(main true)
