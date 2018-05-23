@@ -2,6 +2,8 @@
 
 (require (rename-in racket/function (thunk thunk-)))
 (define (force- f) (f))
+(define (beep- bit)
+  (display (if- bit 1 0)))
 
 (define-syntax-category kind)
 (define-base-kind vty)
@@ -19,12 +21,12 @@
 (define-typed-syntax (thunk e) ≫
   (⊢ e ≫ e- ⇒ B (⇒ ~cty))
   ----------------
-  (⊢ e ⇒ (U B)))
+  (⊢ (thunk- e) ⇒ (U B)))
 
 (define-typed-syntax (force e) ≫
   (⊢ e ≫ e- ⇒ (~U B))
   -------------------
-  (⊢ e- ⇒ B))
+  (⊢ (force- e-) ⇒ B))
 
 (define-typed-syntax (let (x e) e1) ≫
   (⊢ e ≫ e- ⇒ A (⇒ ~vty))
@@ -42,20 +44,24 @@
 (define-typed-syntax (return v) ≫
   (⊢ v ≫ v- ⇒ A (⇒ ~vty))
   ------------------
-  (⊢ (thunk- v-) ⇒ (F A)))
-
-(define-for-syntax (phi B t)
-  (syntax-parse B
-    [(~F A)
-     #`(thunk- (force- (force- #,t)))]
-    #;[(~> A B)
-     #`(lambda (x) (#,(phi #'B t) x))]))
+  (⊢ v- ⇒ (F A)))
 
 (define-typed-syntax (bind (x:id e) e^) ≫
   (⊢ e ≫ e- ⇒ (~F A))
   ((x ≫ x- : A) ⊢ e^ ≫ e^- ⇒ B- (⇒ ~cty))
   -----------------
-  (⊢ #,(phi #'B- #'(thunk- (let- ([x- (force- e-)]) e^-))) ⇒ B-))
+  (⊢
+   (let- ([x- e-]) e^-) ⇒ B-))
+
+(define-typed-syntax (beep v e) ≫
+  [⊢ v ≫ v- ⇐ bool]
+  [⊢ e ≫ e- ⇒ B (⇒ ~cty)]
+  --------------------
+  [⊢ (begin (beep- v-) e-) ⇒ B])
+(define-typed-syntax (flush e) ≫
+  [⊢ e ≫ e- ⇒ B (⇒ ~cty)]
+  --------------------------
+  [⊢ (begin (displayln "") e-) ⇒ B])
 
 (define-typed-syntax true
   (_:id ≫
@@ -99,7 +105,14 @@
 (define-typed-syntax (main e) ≫
   (⊢ e ≫ e- ⇒ (~F A))
   ----------------
-  (⊢ (force- e-) ⇒ ⊥))
+  (⊢ e- ⇒ ⊥))
+(define-typed-syntax (str-main e) ≫
+  (⊢ e ≫ e- ⇒ (~F A))
+  ----------------
+  (⊢ (let* ([s (open-output-string)]
+             [x (parameterize ([current-output-port s])
+                  e-)])
+       (list x (get-output-string s))) ⇒ ⊥))
 
 (module+ test
   (require
@@ -127,4 +140,19 @@
   
   (check-type (^ (λ (x : bool) (return x)) true) : (F bool))
   (check-equal? (main (^ (λ (x : bool) (return x)) true)) #t)
-  (typecheck-fail (^ true true) #:with-msg "Expected ->"))
+  (typecheck-fail (^ true true) #:with-msg "Expected ->")
+
+  (check-type (beep true (return true)) : (F bool))
+  (typecheck-fail (beep (return true) (return false)))
+  (check-equal? (str-main (beep true (beep false (beep true (return true)))))
+                (list #t "101"))
+  (check-equal?
+   (str-main
+    (let (t (thunk (beep true (return true))))
+      (return false)))
+   (list #f ""))
+  (check-equal?
+   (str-main
+    (let [x (thunk (beep true (return true)))]
+      (beep false (force x))))
+   '(#t "01")))
