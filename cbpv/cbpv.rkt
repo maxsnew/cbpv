@@ -1,6 +1,14 @@
 #lang turnstile
 
 (require (rename-in racket/function (thunk thunk-)))
+(provide
+ let main str-main
+ U thunk force
+ F bind return
+ -> λ (rename-out (^ #%app))
+ bool true false if
+ beep flush
+ )
 (define (force- f) (f))
 (define (beep- bit)
   (display (if- bit 1 0)))
@@ -40,11 +48,11 @@
   (⊢ A ≫ A- ⇐ vty)
   --------------
   (⊢ (F- A-) ⇒ cty))
-
+(define (return- v) v)
 (define-typed-syntax (return v) ≫
   (⊢ v ≫ v- ⇒ A (⇒ ~vty))
   ------------------
-  (⊢ v- ⇒ (F A)))
+  (⊢ (return- v-) ⇒ (F A)))
 
 (define-typed-syntax (bind (x:id e) e^) ≫
   (⊢ e ≫ e- ⇒ (~F A))
@@ -98,8 +106,6 @@
   (⊢ e2 ≫ e2- ⇐ A)
   ----------------
   (⊢ (#%app- e1- e2-) ⇒ B))
-
-(provide (rename-out (^ #%app)))
 
 (define-base-type ⊥)
 (define-typed-syntax (main e) ≫
